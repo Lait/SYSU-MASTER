@@ -1,13 +1,3 @@
-/*
- * weighttp - a lightweight and simple webserver benchmarking tool
- *
- * Author:
- *     Copyright (c) 2009-2011 Thomas Porzelt
- *
- * License:
- *     MIT, see COPYING file
- */
-
 struct Stats {
 	ev_tstamp req_ts_min;	/* minimum time taken for a request */
 	ev_tstamp req_ts_max;	/* maximum time taken for a request */

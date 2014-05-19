@@ -1,15 +1,5 @@
-/*
- * weighttp - a lightweight and simple webserver benchmarking tool
- *
- * Author:
- *     Copyright (c) 2009-2011 Thomas Porzelt
- *
- * License:
- *     MIT, see COPYING file
- */
-
-#ifndef WEIGHTTP_H
-#define WEIGHTTP_H 1
+#ifndef BENCH_H
+#define BENCH_H 1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +15,10 @@
 #include <netdb.h>
 
 #include <ev.h>
-#include <pthread.h>
+//#include <pthread.h>
+
+
+#define THREAD_COUNT 4
 
 #define CLIENT_BUFFER_SIZE 32 * 1024
 

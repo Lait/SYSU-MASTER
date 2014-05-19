@@ -1,46 +1,8 @@
-/*
- * weighttp - a lightweight and simple webserver benchmarking tool
- *
- * Author:
- *     Copyright (c) 2009-2011 Thomas Porzelt
- *
- * License:
- *     MIT, see COPYING file
- */
-
-#include "weighttp.h"
+#include "bench.h"
 
 static uint8_t client_parse(Client *client, int size);
 static void client_io_cb(struct ev_loop *loop, ev_io *w, int revents);
 static void client_set_events(Client *client, int events);
-/*
-static void client_add_events(Client *client, int events);
-static void client_rem_events(Client *client, int events);
-
-static void client_add_events(Client *client, int events) {
-	struct ev_loop *loop = client->worker->loop;
-	ev_io *watcher = &client->sock_watcher;
-
-	if ((watcher->events & events) == events)
-		return;
-
-	ev_io_stop(loop, watcher);
-	ev_io_set(watcher, watcher->fd, watcher->events | events);
-	ev_io_start(loop, watcher);
-}
-
-static void client_rem_events(Client *client, int events) {
-	struct ev_loop *loop = client->worker->loop;
-	ev_io *watcher = &client->sock_watcher;
-
-	if (0 == (watcher->events & events))
-		return;
-
-	ev_io_stop(loop, watcher);
-	ev_io_set(watcher, watcher->fd, watcher->events & ~events);
-	ev_io_start(loop, watcher);
-}
-*/
 
 static void client_set_events(Client *client, int events) {
 	struct ev_loop *loop = client->worker->loop;
@@ -325,7 +287,7 @@ static uint8_t client_parse(Client *client, int size) {
 				return 1;
 
 			if (strncmp(client->buffer, "HTTP/1.1 ", sizeof("HTTP/1.1 ")-1) != 0) {
-				printf("Entry 0\n");
+				//printf("Entry 0\n"); 
 				return 0;
 			}
 
@@ -334,7 +296,7 @@ static uint8_t client_parse(Client *client, int size) {
 			str = client->buffer + sizeof("HTTP/1.1 ") - 1;
 			for (end = str + 3; str != end; str++) {
 				if (*str < '0' || *str > '9') {
-					printf("Entry 1\n");
+					//printf("Entry 1\n");
 					return 0;
 				}
 					
@@ -354,14 +316,14 @@ static uint8_t client_parse(Client *client, int size) {
 				client->worker->stats.req_5xx++;
 			} else {
 				// invalid status code
-				printf("Entry 2:Invalid status code\n");
+				//printf("Entry 2:Invalid status code\n");
 				return 0;
 			}
 
 			// look for next \r\n
 			end = strchr(end, '\r');
 			if (!end || *(end+1) != '\n') {
-				printf("Entry 3\n");
+				//printf("Entry 3\n");
 				return 0;
 			}
 				
@@ -372,7 +334,7 @@ static uint8_t client_parse(Client *client, int size) {
 			/* look for Content-Length and Connection header */
 			while (NULL != (end = strchr(&client->buffer[client->parser_offset], '\r'))) {
 				if (*(end+1) != '\n') {
-					printf("Entry 4\n");
+					//printf("Entry 4\n");
 					return 0;
 				}
 					
@@ -403,7 +365,7 @@ static uint8_t client_parse(Client *client, int size) {
 					else if (strncasecmp(str, "keep-alive", sizeof("keep-alive")-1) == 0)
 						client->keepalive = client->worker->config->keep_alive;
 					else {
-						printf("Entry 5\n");
+						//printf("Entry 5\n");
 						return 0;
 					}
 						
@@ -414,7 +376,7 @@ static uint8_t client_parse(Client *client, int size) {
 					if (strncasecmp(str, "chunked", sizeof("chunked")-1) == 0)
 						client->chunked = 1;
 					else{
-						printf("Entry 6\n");
+						//printf("Entry 6\n");
 						return 0;
 					}
 				}
@@ -466,14 +428,14 @@ static uint8_t client_parse(Client *client, int size) {
 						else if (*str >= 'a' && *str <= 'z')
 							client->chunk_size += 10 + *str - 'a';
 						else{
-							printf("Entry 7\n");
+							//printf("Entry 7\n");
 							return 0;
 						}
 					}
 
 					str = strstr(str, "\r\n");
 					if (!str) {
-						printf("Entry 8\n");
+						//printf("Entry 8\n");
 						return 0;
 					}
 	
@@ -505,7 +467,7 @@ static uint8_t client_parse(Client *client, int size) {
 
 				if (client->chunk_received == client->chunk_size) {
 					if (client->buffer[client->parser_offset] != '\r' || client->buffer[client->parser_offset+1] != '\n') {
-						printf("Entry 9\n");
+						//printf("Entry 9\n");
 						return 0;
 					}
 						
@@ -530,7 +492,7 @@ static uint8_t client_parse(Client *client, int size) {
 				client->buffer_offset = 0;
 
 				if (client->content_length == -1) {
-					printf("Entry 10\n");
+					//printf("Entry 10\n");
 					return 0;
 				}
 					

@@ -1,19 +1,9 @@
-/*
- * weighttp - a lightweight and simple webserver benchmarking tool
- *
- * Author:
- *     Copyright (c) 2009-2011 Thomas Porzelt
- *
- * License:
- *     MIT, see COPYING file
- */
-
-#include "weighttp.h"
+#include "bench.h"
 
 extern int optind, optopt; /* getopt */
 
 static void show_help(void) {
-	printf("weighttp <options> <url>\n");
+	printf("bench <options> <url>\n");
 	printf("  -n num   number of requests    (mandatory)\n");
 	printf("  -t num   threadcount           (default: 1)\n");
 	printf("  -c num   concurrent clients    (default: 1)\n");
@@ -21,8 +11,7 @@ static void show_help(void) {
 	printf("  -6       use ipv6              (default: no)\n");
 	printf("  -H str   add header to request\n");
 	printf("  -h       show help and exit\n");
-	printf("  -v       show version and exit\n\n");
-	printf("example: weighttpd -n 10000 -c 10 -t 2 -k -H \"User-Agent: foo\" localhost/index.html\n\n");
+	printf("example: bench -n 10000 -c 10 -t 2 -k -H \"User-Agent: foo\" localhost/index.html\n\n");
 }
 
 static struct addrinfo *resolve_host(char *hostname, uint16_t port, uint8_t use_ipv6) {
@@ -165,7 +154,7 @@ static char *forge_request(char *url, char keep_alive, char **host, uint16_t *po
 	}
 
 	if (!have_user_agent)
-		len += strlen("User-Agent: weighttp/" VERSION "\r\n");
+		len += strlen("User-Agent: weighttp/\r\n");
 
 	req = W_MALLOC(char, len);
 
@@ -183,7 +172,7 @@ static char *forge_request(char *url, char keep_alive, char **host, uint16_t *po
 	strcat(req, "\r\n");
 
 	if (!have_user_agent)
-		sprintf(req + strlen(req), "User-Agent: weighttp/" VERSION "\r\n");
+		sprintf(req + strlen(req), "User-Agent: weighttp/\r\n");
 
 	for (i = 0; i < headers_num; i++) {
 		if (strncmp(headers[i], "Host:", sizeof("Host:")-1) == 0)
@@ -219,7 +208,6 @@ int main(int argc, char *argv[]) {
 	pthread_t *threads;
 	int i;
 	int opt;
-	int err;
 	struct ev_loop *loop;
 	ev_tstamp ts_start, ts_end;
 	Config config;
@@ -236,7 +224,7 @@ int main(int argc, char *argv[]) {
 	char **headers;
 	uint8_t headers_num;
 
-	printf("weighttp - a lightweight and simple webserver benchmarking tool\n\n");
+	printf("This is a very simple benchmark tool, please enjoy :) \n\n");
 
 	headers = NULL;
 	headers_num = 0;
@@ -252,10 +240,6 @@ int main(int argc, char *argv[]) {
 		switch (opt) {
 			case 'h':
 				show_help();
-				return 0;
-			case 'v':
-				printf("version:    " VERSION "\n");
-				printf("build-date: " __DATE__ " " __TIME__ "\n\n");
 				return 0;
 			case '6':
 				use_ipv6 = 1;
@@ -351,7 +335,8 @@ int main(int argc, char *argv[]) {
 
 	memset(&stats, 0, sizeof(stats));
 	ts_start = ev_time();
-
+	
+	//Initialize workers
 	for (i = 0; i < config.thread_count; i++) {
 		uint64_t reqs = config.req_count / config.thread_count;
 		uint16_t concur = config.concur_count / config.thread_count;
@@ -365,30 +350,25 @@ int main(int argc, char *argv[]) {
 			reqs += 1;
 			rest_req -= 1;
 		}
-		printf("spawning thread #%d: %"PRIu16" concurrent requests, %"PRIu64" total requests\n", i+1, concur, reqs);
+
 		workers[i] = worker_new(i+1, &config, concur, reqs);
 
 		if (!(workers[i])) {
 			W_ERROR("%s", "failed to allocate worker or client");
 			return 1;
 		}
-
-		err = pthread_create(&threads[i], NULL, worker_thread, (void*)workers[i]);
-
-		if (err != 0) {
-			W_ERROR("failed spawning thread (%d)", err);
-			return 2;
-		}
 	}
 
-	for (i = 0; i < config.thread_count; i++) {
-		err = pthread_join(threads[i], NULL);
-		worker = workers[i];
+            //Openmp codes
+            #pragma omp parallel num_threads(config.thread_count)
+            {
+		printf("Worker NO.%d is working on %"PRIu16" concurrent requests, %"PRIu64" total requests.\n", omp_get_thread_num(), workers[omp_get_thread_num()]->num_clients, workers[omp_get_thread_num()]->stats.req_todo);
+		worker_thread(workers[omp_get_thread_num()]);
+            }
 
-		if (err != 0) {
-			W_ERROR("failed joining thread (%d)", err);
-			return 3;
-		}
+	//Collect result data from workers
+	for (i = 0; i < config.thread_count; i++) {
+		worker = workers[i];
 
 		stats.req_started += worker->stats.req_started;
 		stats.req_done += worker->stats.req_done;
