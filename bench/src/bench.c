@@ -154,7 +154,7 @@ static char *forge_request(char *url, char keep_alive, char **host, uint16_t *po
 	}
 
 	if (!have_user_agent)
-		len += strlen("User-Agent: weighttp/\r\n");
+		len += strlen("User-Agent: benchmark/\r\n");
 
 	req = W_MALLOC(char, len);
 
@@ -172,7 +172,7 @@ static char *forge_request(char *url, char keep_alive, char **host, uint16_t *po
 	strcat(req, "\r\n");
 
 	if (!have_user_agent)
-		sprintf(req + strlen(req), "User-Agent: weighttp/\r\n");
+		sprintf(req + strlen(req), "User-Agent: benchmark/\r\n");
 
 	for (i = 0; i < headers_num; i++) {
 		if (strncmp(headers[i], "Host:", sizeof("Host:")-1) == 0)
@@ -204,8 +204,21 @@ uint64_t str_to_uint64(char *str) {
 }
 
 int main(int argc, char *argv[]) {
-	Worker **workers;
-	pthread_t *threads;
+	int myid, numprocs;
+	int namelen;
+	char processor_name[MPI_MAX_PROCESSOR_NAME]; 
+
+	//printf("This is a very simple benchmark tool, please enjoy :) \n\n");
+	//printf("starting benchmark...\n");
+ 
+	MPI_Init(&argc, &argv);
+	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
+	MPI_Get_processor_name(processor_name, &namelen);
+
+	//fprintf(stderr, "Process %d of %d on %s :\n",myid,numprocs,processor_name);
+
+	//Worker **workers;
 	int i;
 	int opt;
 	struct ev_loop *loop;
@@ -224,7 +237,7 @@ int main(int argc, char *argv[]) {
 	char **headers;
 	uint8_t headers_num;
 
-	printf("This is a very simple benchmark tool, please enjoy :) \n\n");
+
 
 	headers = NULL;
 	headers_num = 0;
@@ -325,94 +338,98 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* spawn threads */
-	threads = W_MALLOC(pthread_t, config.thread_count);
-	workers = W_MALLOC(Worker*, config.thread_count);
+	//threads = W_MALLOC(pthread_t, config.thread_count);
+	//workers = W_MALLOC(Worker*, config.thread_count);
 
 	rest_concur = config.concur_count % config.thread_count;
 	rest_req = config.req_count % config.thread_count;
 
-	printf("starting benchmark...\n");
+	
 
 	memset(&stats, 0, sizeof(stats));
+
 	ts_start = ev_time();
 	
-	//Initialize workers
-	for (i = 0; i < config.thread_count; i++) {
-		uint64_t reqs = config.req_count / config.thread_count;
-		uint16_t concur = config.concur_count / config.thread_count;
+	//Initialize worker
+	uint64_t reqs    = config.req_count / config.thread_count;
+	uint16_t concur = config.concur_count / config.thread_count;
 
-		if (rest_concur) {
-			concur += 1;
-			rest_concur -= 1;
-		}
-
-		if (rest_req) {
-			reqs += 1;
-			rest_req -= 1;
-		}
-
-		workers[i] = worker_new(i+1, &config, concur, reqs);
-
-		if (!(workers[i])) {
-			W_ERROR("%s", "failed to allocate worker or client");
-			return 1;
-		}
+	if (rest_concur) {
+		concur += 1;
+		rest_concur -= 1;
 	}
 
-            //Openmp codes
-            #pragma omp parallel num_threads(config.thread_count)
-            {
-		printf("Worker NO.%d is working on %"PRIu16" concurrent requests, %"PRIu64" total requests.\n", omp_get_thread_num(), workers[omp_get_thread_num()]->num_clients, workers[omp_get_thread_num()]->stats.req_todo);
-		worker_thread(workers[omp_get_thread_num()]);
-            }
-
-	//Collect result data from workers
-	for (i = 0; i < config.thread_count; i++) {
-		worker = workers[i];
-
-		stats.req_started += worker->stats.req_started;
-		stats.req_done += worker->stats.req_done;
-		stats.req_success += worker->stats.req_success;
-		stats.req_failed += worker->stats.req_failed;
-		stats.bytes_total += worker->stats.bytes_total;
-		stats.bytes_body += worker->stats.bytes_body;
-		stats.req_2xx += worker->stats.req_2xx;
-		stats.req_3xx += worker->stats.req_3xx;
-		stats.req_4xx += worker->stats.req_4xx;
-		stats.req_5xx += worker->stats.req_5xx;
-
-		worker_free(worker);
+	if (rest_req) {
+		reqs += 1;
+		rest_req -= 1;
 	}
 
-	ts_end = ev_time();
-	duration = ts_end - ts_start;
-	sec = duration;
-	duration -= sec;
-	duration = duration * 1000;
-	millisec = duration;
-	duration -= millisec;
-	microsec = duration * 1000;
-	rps = stats.req_done / (ts_end - ts_start);
-	kbps = stats.bytes_total / (ts_end - ts_start) / 1024;
-	printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s, %"PRIu64" kbyte/s\n", sec, millisec, microsec, rps, kbps);
-	printf("requests: %"PRIu64" total, %"PRIu64" started, %"PRIu64" done, %"PRIu64" succeeded, %"PRIu64" failed, %"PRIu64" errored\n",
-		config.req_count, stats.req_started, stats.req_done, stats.req_success, stats.req_failed, stats.req_error
-	);
-	printf("status codes: %"PRIu64" 2xx, %"PRIu64" 3xx, %"PRIu64" 4xx, %"PRIu64" 5xx\n",
-		stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
-	);
-	printf("traffic: %"PRIu64" bytes total, %"PRIu64" bytes http, %"PRIu64" bytes data\n",
-		stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
-	);
+	worker = worker_new(1, &config, concur, reqs);
+
+	if (!worker) {
+		W_ERROR("%s", "failed to allocate worker or client");
+		return 1;
+	}
+
+	fprintf(stderr,"Process %d of %d on %s :\n", myid, numprocs, processor_name);
+	fprintf(stderr, "Working on %"PRIu16" concurrent requests, %"PRIu64" total requests.\n", 
+			worker->num_clients, 
+			worker->stats.req_todo);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	worker_thread(worker);
+
+	//Collect results from workers
+	stats.req_started += worker->stats.req_started;
+	stats.req_done += worker->stats.req_done;
+	stats.req_success += worker->stats.req_success;
+	stats.req_failed += worker->stats.req_failed;
+	stats.bytes_total += worker->stats.bytes_total;
+	stats.bytes_body += worker->stats.bytes_body;
+	stats.req_2xx += worker->stats.req_2xx;
+	stats.req_3xx += worker->stats.req_3xx;
+	stats.req_4xx += worker->stats.req_4xx;
+	stats.req_5xx += worker->stats.req_5xx;
+	
+
+	//If this is process 0
+	//if (myid == 0) {
+		ts_end = ev_time();
+		duration = ts_end - ts_start;
+		sec = duration;
+		duration -= sec;
+		duration = duration * 1000;
+		millisec = duration;
+		duration -= millisec;
+		microsec = duration * 1000;
+		rps = stats.req_done / (ts_end - ts_start);
+		kbps = stats.bytes_total / (ts_end - ts_start) / 1024;
+
+		printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s, %"PRIu64" kbyte/s\n", sec, millisec, microsec, rps, kbps);
+		printf("requests: %"PRIu64" total, %"PRIu64" started, %"PRIu64" done, %"PRIu64" succeeded, %"PRIu64" failed, %"PRIu64" errored\n",
+			config.req_count, stats.req_started, stats.req_done, stats.req_success, stats.req_failed, stats.req_error
+		);
+		printf("status codes: %"PRIu64" 2xx, %"PRIu64" 3xx, %"PRIu64" 4xx, %"PRIu64" 5xx\n",
+			stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
+		);
+		printf("traffic: %"PRIu64" bytes total, %"PRIu64" bytes http, %"PRIu64" bytes data\n",
+			stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
+		);
+	//} else {
+
+	
+	//}
+
 
 	ev_default_destroy();
 
-	free(threads);
-	free(workers);
+	free(worker);
 	free(config.request);
 	free(host);
 	free(headers);
 	freeaddrinfo(config.saddr);
+	
+	MPI_Finalize();
 
 	return 0;
 }

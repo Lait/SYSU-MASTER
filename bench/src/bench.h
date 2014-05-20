@@ -38,6 +38,7 @@ typedef struct Client Client;
 
 #include "client.h"
 #include "worker.h"
+#include "mpi.h"
 
 
 struct Config {
