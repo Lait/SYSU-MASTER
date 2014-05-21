@@ -347,10 +347,9 @@ int main(int argc, char *argv[]) {
 	
 
 	memset(&stats, 0, sizeof(stats));
-
+	
 	ts_start = ev_time();
 	
-	//Initialize worker
 	uint64_t reqs    = config.req_count / config.thread_count;
 	uint16_t concur = config.concur_count / config.thread_count;
 
@@ -364,6 +363,7 @@ int main(int argc, char *argv[]) {
 		rest_req -= 1;
 	}
 
+	//Create a new worker.
 	worker = worker_new(1, &config, concur, reqs);
 
 	if (!worker) {
@@ -376,10 +376,13 @@ int main(int argc, char *argv[]) {
 			worker->num_clients, 
 			worker->stats.req_todo);
 
+	//Wait for the other process to start togethor.
 	MPI_Barrier(MPI_COMM_WORLD);
+
+	//Start benchmark worker.
 	worker_thread(worker);
 
-	//Collect results from workers
+	//Collect results from workers.
 	stats.req_started += worker->stats.req_started;
 	stats.req_done += worker->stats.req_done;
 	stats.req_success += worker->stats.req_success;

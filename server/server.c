@@ -9,13 +9,13 @@ uv_tcp_t   _server;
 uv_tcp_t   _client;  
 uv_loop_t* _loop;  
   
-static void tinyweb_on_connection(uv_stream_t* server, int status);  
+static void on_connection(uv_stream_t* server, int status);  
   
-void tinyweb_start(uv_loop_t* loop, const char* ip, int port) {  
+void server_start(uv_loop_t* loop, const char* ip, int port) {  
     _loop = loop;  
     uv_tcp_init(_loop, &_server);  
     uv_tcp_bind(&_server, uv_ip4_addr(ip&&ip[0]?ip:"0.0.0.0", port));  
-    uv_listen((uv_stream_t*)&_server, 1024, tinyweb_on_connection);
+    uv_listen((uv_stream_t*)&_server, 1024, on_connection);
 	printf("Web server is runnning on %s:%d\n", ip, port);
 }
   
@@ -54,7 +54,7 @@ static const char* http_respone = "HTTP/1.1 200 OK\r\n"
     "\r\n"  
     "Hello world";  
   
-static void tinyweb_on_connection(uv_stream_t* server, int status) {  
+static void on_connection(uv_stream_t* server, int status) {  
     assert(server == (uv_stream_t*)&_server);  
     if(status == 0) {  
         uv_tcp_t* client = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));  
@@ -66,6 +66,6 @@ static void tinyweb_on_connection(uv_stream_t* server, int status) {
 }
 
 int main() {  
-    tinyweb_start(uv_default_loop(), "127.0.0.1", 8080);  
+    server_start(uv_default_loop(), "127.0.0.1", 8080);  
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);  
 }  

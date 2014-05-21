@@ -1,0 +1,4 @@
+1.安装libopenmpi-dev, openmpi-bin
+2.运行build.sh
+2.使用命令,如:
+	mpirun -n 2 -H localhost -rf rankfile -report-bindings ./bench -n 1000 -c 1000 http://127.0.0.1:8080/
