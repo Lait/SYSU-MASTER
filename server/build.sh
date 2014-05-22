@@ -1,2 +1,2 @@
 rm server
-gcc *.c -luv -o server
+gcc  -o server  src/*.c -luv -lpthread

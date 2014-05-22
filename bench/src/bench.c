@@ -422,8 +422,6 @@ int main(int argc, char *argv[]) {
 
 	
 	//}
-
-
 	ev_default_destroy();
 
 	free(worker);
