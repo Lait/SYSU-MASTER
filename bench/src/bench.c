@@ -207,6 +207,7 @@ int main(int argc, char *argv[]) {
 	int myid, numprocs;
 	int namelen;
 	char processor_name[MPI_MAX_PROCESSOR_NAME]; 
+	MPI_Status mpi_status;
 
 	//printf("This is a very simple benchmark tool, please enjoy :) \n\n");
 	//printf("starting benchmark...\n");
@@ -393,10 +394,13 @@ int main(int argc, char *argv[]) {
 	stats.req_3xx += worker->stats.req_3xx;
 	stats.req_4xx += worker->stats.req_4xx;
 	stats.req_5xx += worker->stats.req_5xx;
-	
+
+
+	uint64_t args[9];
 
 	//If this is process 0
-	//if (myid == 0) {
+	if (myid == 0) {
+		//printf("I'm process 0!\n");
 		ts_end = ev_time();
 		duration = ts_end - ts_start;
 		sec = duration;
@@ -405,23 +409,87 @@ int main(int argc, char *argv[]) {
 		millisec = duration;
 		duration -= millisec;
 		microsec = duration * 1000;
-		rps = stats.req_done / (ts_end - ts_start);
-		kbps = stats.bytes_total / (ts_end - ts_start) / 1024;
 
-		printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s, %"PRIu64" kbyte/s\n", sec, millisec, microsec, rps, kbps);
+		uint64_t total_req_count = config.req_count;
+		uint64_t total_req_started = stats.req_started;
+		uint64_t total_req_done = stats.req_done;
+		uint64_t total_req_success = stats.req_success;
+		uint64_t total_req_failed = stats.req_failed;
+		uint64_t total_req_error = stats.req_error;
+
+		int i;
+		for(i = 0; i < numprocs; i++) {
+			if (i == 0) continue;
+			MPI_Recv(args, 10, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);\
+			//printf("Recv !\n");
+			//Get maxium time spended.
+			if (args[0] > sec) {
+				sec = args[0];
+				millisec = args[1];
+				microsec = args[2];
+			} else if (args[1] > millisec) {
+				millisec = args[1];
+				microsec = args[2];
+			} else if (args[2] > microsec) {
+				microsec = args[2];
+			}
+
+			total_req_count += args[3];
+			total_req_started += args[4];
+			total_req_done += args[5];
+			total_req_success += args[6];
+			total_req_failed += args[7];
+			total_req_error += args[8];
+		}
+		double dur = (double)sec +  (((double)millisec) + (((double)microsec) / 1000)) / 1000;
+		//printf("%lf\n", dur);
+		rps = (uint64_t) (total_req_done / dur);
+		//kbps = stats.bytes_total / (ts_end - ts_start) / 1024;
+
+		printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s\n", sec, millisec, microsec, rps);
 		printf("requests: %"PRIu64" total, %"PRIu64" started, %"PRIu64" done, %"PRIu64" succeeded, %"PRIu64" failed, %"PRIu64" errored\n",
-			config.req_count, stats.req_started, stats.req_done, stats.req_success, stats.req_failed, stats.req_error
+			total_req_count, total_req_started, total_req_done, total_req_success, total_req_failed, total_req_error
 		);
+		/*
 		printf("status codes: %"PRIu64" 2xx, %"PRIu64" 3xx, %"PRIu64" 4xx, %"PRIu64" 5xx\n",
 			stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
 		);
 		printf("traffic: %"PRIu64" bytes total, %"PRIu64" bytes http, %"PRIu64" bytes data\n",
 			stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
-		);
-	//} else {
+		);*/
 
-	
-	//}
+	} else {
+		//TO BE SENDED
+		/*
+		 * sec, millisec, microec, stats.req_done
+		 * config.req_count, stats.req_started, stats.req_done, stats.req_success, stats.req_failed, stats.req_error
+		 * stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
+		 * stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
+		 */
+		//printf("I'm sender!\n");
+		ts_end = ev_time();
+		duration = ts_end - ts_start;
+		sec = duration;
+		duration -= sec;
+		duration = duration * 1000;
+		millisec = duration;
+		duration -= millisec;
+		microsec = duration * 1000;
+
+		args[0] = sec;
+		args[1] = millisec;
+		args[2] = microsec;
+		args[3] = config.req_count;
+		args[4] = stats.req_started;
+		args[5] = stats.req_done;
+		args[6] = stats.req_success;
+		args[7] = stats.req_failed;
+		args[8] = stats.req_error;
+
+		MPI_Send(args, 10, MPI_UNSIGNED_LONG, 0, 0, MPI_COMM_WORLD);
+		//printf("Send!\n");
+	}
+
 	ev_default_destroy();
 
 	free(worker);

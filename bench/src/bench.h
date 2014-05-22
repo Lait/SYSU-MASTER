@@ -52,6 +52,29 @@ struct Config {
 	struct addrinfo *saddr;
 };
 
+ /*
+struct MpiMessage {
+	uint64_t sec;
+	uint64_t millisec;
+	uint64_t microec;
+
+	uint64_t req_done;
+	uint64_t req_count;
+	uint64_t req_started;
+	uint64_t req_success;
+	uint64_t req_failed;
+	uint64_t req_error;
+
+	uint64_t req_2xx;
+	uint64_t req_3xx; 
+	uint64_t req_4xx;
+	uint64_t req_5xx;
+
+	uint64_t bytes_total;
+	uint64_t bytes_body;
+
+}*/
+
 uint64_t str_to_uint64(char *str);
 
 #endif
