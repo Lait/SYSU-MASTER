@@ -1,8 +1,10 @@
 #include "bench.h"
 
+
+//Definition of private functions.
 static uint8_t client_parse(Client *client, int size);
-static void client_io_cb(struct ev_loop *loop, ev_io *w, int revents);
-static void client_set_events(Client *client, int events);
+static void    client_io_cb(struct ev_loop *loop, ev_io *w, int revents);
+static void    client_set_events(Client *client, int events);
 
 static void client_set_events(Client *client, int events) {
 	struct ev_loop *loop = client->worker->loop;
@@ -57,6 +59,7 @@ static void client_reset(Client *client) {
 
 		client->state = CLIENT_START;
 	} else {
+		// Keepalived
 		client_set_events(client, EV_WRITE);
 		client->state = CLIENT_WRITING;
 		client->worker->stats.req_started++;
@@ -152,11 +155,13 @@ void client_state_machine(Client *client) {
 				client_set_events(client, EV_WRITE);
 				return;
 			}
+
 		case CLIENT_CONNECTING:
 			if (!client_connect(client)) {
 				client->state = CLIENT_ERROR;
 				goto start;
 			}
+
 		case CLIENT_WRITING:
 			while (1) {
 				r = write(client->sock_watcher.fd, &config->request[client->request_offset], config->request_size - client->request_offset);
@@ -185,6 +190,7 @@ void client_state_machine(Client *client) {
 					goto start;
 				}
 			}
+
 		case CLIENT_READING:
 			while (1) {
 				r = read(client->sock_watcher.fd, &client->buffer[client->buffer_offset], sizeof(client->buffer) - client->buffer_offset - 1);
@@ -240,6 +246,7 @@ void client_state_machine(Client *client) {
 			client->keepalive = 0;
 			client->success = 0;
 			client->state = CLIENT_END;
+
 		case CLIENT_END:
 			/* update worker stats */
 			client->worker->stats.req_done++;
@@ -267,6 +274,13 @@ void client_state_machine(Client *client) {
 
 				if (client->worker->stats.req_done == client->worker->stats.req_todo) {
 					/* this worker has finished all requests */
+					/*
+					int myid;
+					MPI_Comm_rank(MPI_COMM_WORLD,&myid);
+					ev_tstamp ts_time = ev_time();
+					printf("## Process %d finish sending at %lf", myid, ts_time);
+					*/
+					
 					ev_unref(client->worker->loop);
 				}
 			} else {
@@ -331,6 +345,7 @@ static uint8_t client_parse(Client *client, int size) {
 				
 			client->parser_offset = end + 2 - client->buffer;
 			client->parser_state = PARSER_HEADER;
+
 		case PARSER_HEADER:
 			//printf("parse (HEADER)\n");
 			/* look for Content-Length and Connection header */
@@ -398,6 +413,7 @@ static uint8_t client_parse(Client *client, int size) {
 			}
 
 			return 1;
+
 		case PARSER_BODY:
 			//printf("parse (BODY)\n");
 			/* do nothing, just consume the data */

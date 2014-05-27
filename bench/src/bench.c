@@ -216,6 +216,7 @@ int main(int argc, char *argv[]) {
 	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
 	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
 	MPI_Get_processor_name(processor_name, &namelen);
+	//MPI_Barrier(MPI_COMM_WORLD);
 
 	//fprintf(stderr, "Process %d of %d on %s :\n",myid,numprocs,processor_name);
 
@@ -348,10 +349,8 @@ int main(int argc, char *argv[]) {
 	
 
 	memset(&stats, 0, sizeof(stats));
-	
-	ts_start = ev_time();
-	
-	uint64_t reqs    = config.req_count / config.thread_count;
+		
+	uint64_t reqs = config.req_count / config.thread_count;
 	uint16_t concur = config.concur_count / config.thread_count;
 
 	if (rest_concur) {
@@ -381,7 +380,9 @@ int main(int argc, char *argv[]) {
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	//Start benchmark worker.
-	worker_thread(worker);
+	ts_start = ev_time();
+	printf("## Process %d started at %lf", myid, ts_start);
+	worker_run(worker);
 
 	//Collect results from workers.
 	stats.req_started += worker->stats.req_started;
@@ -397,19 +398,20 @@ int main(int argc, char *argv[]) {
 
 
 	uint64_t args[9];
+	ts_end = ev_time();
+	//printf("## Process %d ended at %lf", myid, ts_end);
+	duration = ts_end - ts_start;
+	printf("## Process %d cost %lf\n", myid, duration);
+	sec = duration;
+	duration -= sec;
+	duration = duration * 1000;
+	millisec = duration;
+	duration -= millisec;
+	microsec = duration * 1000;
 
 	//If this is process 0
 	if (myid == 0) {
 		//printf("I'm process 0!\n");
-		ts_end = ev_time();
-		duration = ts_end - ts_start;
-		sec = duration;
-		duration -= sec;
-		duration = duration * 1000;
-		millisec = duration;
-		duration -= millisec;
-		microsec = duration * 1000;
-
 		uint64_t total_req_count = config.req_count;
 		uint64_t total_req_started = stats.req_started;
 		uint64_t total_req_done = stats.req_done;
@@ -420,7 +422,7 @@ int main(int argc, char *argv[]) {
 		int i;
 		for(i = 0; i < numprocs; i++) {
 			if (i == 0) continue;
-			MPI_Recv(args, 10, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);\
+			MPI_Recv(args, 10, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 			//printf("Recv !\n");
 			//Get maxium time spended.
 			if (args[0] > sec) {
@@ -450,32 +452,8 @@ int main(int argc, char *argv[]) {
 		printf("requests: %"PRIu64" total, %"PRIu64" started, %"PRIu64" done, %"PRIu64" succeeded, %"PRIu64" failed, %"PRIu64" errored\n",
 			total_req_count, total_req_started, total_req_done, total_req_success, total_req_failed, total_req_error
 		);
-		/*
-		printf("status codes: %"PRIu64" 2xx, %"PRIu64" 3xx, %"PRIu64" 4xx, %"PRIu64" 5xx\n",
-			stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
-		);
-		printf("traffic: %"PRIu64" bytes total, %"PRIu64" bytes http, %"PRIu64" bytes data\n",
-			stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
-		);*/
 
 	} else {
-		//TO BE SENDED
-		/*
-		 * sec, millisec, microec, stats.req_done
-		 * config.req_count, stats.req_started, stats.req_done, stats.req_success, stats.req_failed, stats.req_error
-		 * stats.req_2xx, stats.req_3xx, stats.req_4xx, stats.req_5xx
-		 * stats.bytes_total,  stats.bytes_total - stats.bytes_body, stats.bytes_body
-		 */
-		//printf("I'm sender!\n");
-		ts_end = ev_time();
-		duration = ts_end - ts_start;
-		sec = duration;
-		duration -= sec;
-		duration = duration * 1000;
-		millisec = duration;
-		duration -= millisec;
-		microsec = duration * 1000;
-
 		args[0] = sec;
 		args[1] = millisec;
 		args[2] = microsec;

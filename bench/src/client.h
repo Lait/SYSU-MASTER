@@ -34,6 +34,8 @@ struct Client {
 	char buffer[CLIENT_BUFFER_SIZE];
 };
 
-Client *client_new(Worker *worker);
-void client_free(Client *client);
-void client_state_machine(Client *client);
+
+//Definition of public functions.
+Client* client_new(Worker *worker);
+void    client_free(Client *client);
+void    client_state_machine(Client *client);

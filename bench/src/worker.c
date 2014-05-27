@@ -1,13 +1,3 @@
-/*
- * weighttp - a lightweight and simple webserver benchmarking tool
- *
- * Author:
- *     Copyright (c) 2009-2011 Thomas Porzelt
- *
- * License:
- *     MIT, see COPYING file
- */
-
 #include "bench.h"
 
 Worker *worker_new(uint8_t id, Config *config, uint16_t num_clients, uint64_t num_requests) {
@@ -22,6 +12,7 @@ Worker *worker_new(uint8_t id, Config *config, uint16_t num_clients, uint64_t nu
 	worker->num_clients = num_clients;
 	worker->stats.req_todo = num_requests;
 	worker->progress_interval = num_requests / 10;
+	//worker->sendlog = (struct timeval *)calloc(100000, sizeof(struct timeval));
 
 	if (worker->progress_interval == 0)
 		worker->progress_interval = 1;
@@ -42,11 +33,12 @@ void worker_free(Worker *worker) {
 	for (i = 0; i < worker->num_clients; i++)
 		client_free(worker->clients[i]);
 
+	//free(worker->sendlog);
 	free(worker->clients);
 	free(worker);
 }
 
-void *worker_thread(void* arg) {
+void *worker_run(void* arg) {
 	uint16_t i;
 	Worker *worker = (Worker*)arg;
 
