@@ -16,9 +16,13 @@ uv_loop_t* _loop;
 
 long size;
 struct timeval * results;
+int keepalive = 0;
 
 const char* http_respone = "HTTP/1.1 200 OK\r\n"  
     "Content-Type: text/html;charset=utf-8\r\n"  
     "Content-Length: 11\r\n"  
     "\r\n"  
     "Hello world";
+
+
+void server_start(uv_loop_t* loop, const char* ip, int port);
