@@ -16,7 +16,7 @@
 
 #include <ev.h>
 
-#define CLIENT_BUFFER_SIZE 32 * 1024
+#define CLIENT_BUFFER_SIZE 32 * 2048
 
 #define W_MALLOC(t, n) ((t*) calloc((n), sizeof(t)))
 #define W_REALLOC(p, t, n) ((t*) realloc(p, (n) * sizeof(t)))
@@ -39,7 +39,5 @@ typedef struct Client Client;
 #include "client.h"
 #include "worker.h"
 #include "mpi.h"
-
-
 
 #endif

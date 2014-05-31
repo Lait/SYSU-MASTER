@@ -35,14 +35,6 @@ void write_uv_data(uv_stream_t* stream, const void* data, unsigned int len, int 
 	uv_buf_t buf = uv_buf_init(newdata, len);  
 	uv_write_t* w = (uv_write_t*)malloc(sizeof(uv_write_t));  
 	w->data = need_copy_data ? newdata : NULL;
-	/*
-	int i = 0;
-	for (i = 0; i < 10000; i++) {
-		int j = i;
-		if (i > 1000000) {
-			printf("Impossibel!\n");
-		}
-	}*/
 	uv_write(w, stream, &buf, 1, after_uv_write);
 }  
 
@@ -52,21 +44,25 @@ uv_buf_t on_uv_alloc(uv_handle_t *handle, size_t suggested_size) {
 
 
 void close_client(uv_stream_t* client) {
-	uv_close((uv_handle_t*)client, after_uv_close);
+	if (!uv_is_closing((uv_handle_t*)client)) {
+		uv_close((uv_handle_t*)client, after_uv_close);
+	} else {
+		free(client);
+	}
 }
 
 void on_uv_read(uv_stream_t* client, ssize_t nread, uv_buf_t buf) {
-	//results[size++] = getCurrentTimeval();
+	results[size++] = getCurrentTimeval();
 	if(nread > 0) {
 		write_uv_data((uv_stream_t*)client, http_respone, -1, 0);
-	} else if(nread == -1) {
+	} else if (nread <= -1) {
 		close_client(client);
 	}
 }
 
 void on_connection(uv_stream_t* server, int status) { 
-	assert(server == (uv_stream_t*)&_server);  
-	results[size++] = getCurrentTimeval();
+	//assert(server == (uv_stream_t*)&_server);  
+	//results[size++] = getCurrentTimeval();
 	if(status == 0) {
 		uv_tcp_t* client = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));  
 		uv_tcp_init(_loop, client);
@@ -74,6 +70,52 @@ void on_connection(uv_stream_t* server, int status) {
 		//write_uv_data((uv_stream_t*)client, http_respone, -1, 0);
 		uv_read_start((uv_stream_t*)client, on_uv_alloc, on_uv_read);
 	}
+}
+
+void analyse2() {
+	int count = 0;
+
+	if (size > 0) {
+		count++;
+	}
+
+	int intervel = 5000;
+
+	long last_sec = results[0].tv_sec;
+	long last_usec = results[0].tv_usec;
+
+	int  i = 1;
+	while (i < size) {
+		if ((results[i].tv_sec == last_sec) && (results[i].tv_usec - last_usec < intervel)) {
+			count++;
+			i++;
+		} else if (results[i].tv_sec < last_sec) {
+			printf(">> Sucks!!!!!!!!!!!\n");
+			size = 0;
+			return;
+		} else {
+			printf(">> %d req / 5ms\n", count);
+			count = 1;
+			if (last_usec + intervel >= 1000000) {
+				last_sec++;
+				last_usec += last_usec + intervel - 10000;
+			} else {
+				last_usec = last_usec + intervel;
+			}
+		}
+	}
+	printf(">> %d req / 5ms\n", count);
+}
+
+void analyse1() {
+	if (size <= 0) {
+		printf("Request arrive rate : 0 req / s.\n");
+	}
+
+	double start = (double)results[0].tv_sec * 1000 + ((double)results[0].tv_usec / 1000);
+	double end = (double)results[size - 1].tv_sec * 1000  + ((double)results[size - 1].tv_usec / 1000);
+
+	printf("Request arrive rate : %lf req / ms.\n", size / (end - start));
 }
 
 void server_start(uv_loop_t* loop, const char* ip, int port) {  
@@ -84,43 +126,13 @@ void server_start(uv_loop_t* loop, const char* ip, int port) {
 	printf("Web server is runnning on %s:%d\n", ip, port);
 }
 
+//#define IP "172.18.182.65"
+#define IP "127.0.0.1"
+
 void* worker_thread(void* arg) {
-	server_start(uv_default_loop(), "127.0.0.1", 8080);  
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT); 
-}
-
-void analyse() {
-	int count = 0;
-	int i = 0;
-
-	if (size > 0) {
-		count++;
-	}
-
-	long last_sec = results[0].tv_sec;
-	long last_usec = results[0].tv_usec;
-
-	for (i = 1; i < size; i++) {
-		if ((results[i].tv_sec == last_sec) && (results[i].tv_usec - last_usec < 50000)) {
-			count++;
-		} else {
-			printf(">> %d req / 50ms\n", count);
-			count = 1;
-			last_sec = results[i].tv_sec;
-			last_usec = results[i].tv_usec;
-		}
-	}
-	printf(">> %d req / 50ms\n", count);
-	size = 0;
-}
-
-void printAll() {
-	int i = 0;
-	printf(">> ");
-	for (i = 0; i < size; i++) {
-		printf("%ld:%ld ", results[i].tv_sec, results[i].tv_usec);
-	}
-	printf("\n");
+	uv_loop_t* loop = (uv_loop_t*)arg;
+	server_start(loop, IP, 8080);  
+	uv_run(loop, UV_RUN_DEFAULT); 
 }
 
 int main(int argc, char *argv[]) {
@@ -128,12 +140,15 @@ int main(int argc, char *argv[]) {
 	memset(&input, 0, sizeof(input));
 
 	pthread_t* server_thread = NULL;
+	uv_loop_t* loop = uv_default_loop();
 	size = 0;
-	results = (struct timeval *)calloc(100000, sizeof(struct timeval));
+	results = (struct timeval *)calloc(1000000, sizeof(struct timeval));
+
 	printf("Waiting for actions:\n");
 
 	if (argc > 1 && (strncmp(argv[1], "keepalive", sizeof("keepalive") - 1) == 0)) {
 		keepalive = 1;
+		printf("Server is keepalived !\n");
 	}
 
 	while(1) {
@@ -141,7 +156,7 @@ int main(int argc, char *argv[]) {
 		scanf("%s", input);
 
 		if (strncmp(input, "end", sizeof("end") - 1) == 0) {
-			printf(">> Shuting down.....\n");
+			printf("Shuting down.....\n");
 			if (server_thread == NULL) return 0;
 
 			if(pthread_cancel(*server_thread) == 0)  { 
@@ -150,12 +165,13 @@ int main(int argc, char *argv[]) {
 				pthread_kill(*server_thread,0);
 			}
 			free(results);
-
+			//uv_loop_close(loop);
+			printf(">> Bye ! \n");
 			return 0;
 		} else if (strncmp(input, "start", sizeof("start") - 1) == 0) {
-			printf(">> Starting.....\n");
+			printf("Starting.....\n");
 			server_thread = malloc(sizeof(pthread_t));
-			int err = pthread_create(server_thread, NULL, worker_thread, NULL);
+			int err = pthread_create(server_thread, NULL, worker_thread, loop);
 			if (err != 0) {
 				printf(">> ERROR: Can not start server!\n");
 				return -1;
@@ -168,9 +184,9 @@ int main(int argc, char *argv[]) {
 
 			//Debug
 			//printAll();
-
-			analyse();
-
+			analyse1();
+			analyse2();
+			size = 0;
 			//memset(&results, 0, sizeof(results));
 		} else {
 			printf(">> ERROR:Invalid input! Try again.\n");

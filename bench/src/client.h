@@ -36,6 +36,6 @@ struct Client {
 
 
 //Definition of public functions.
-Client* client_new(Worker *worker);
-void    client_free(Client *client);
-void    client_state_machine(Client *client);
+Client*   client_new(Worker *worker);
+void       client_free(Client *client);
+void       client_state_machine(Client *client);

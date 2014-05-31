@@ -11,6 +11,6 @@ struct Worker {
 };
 
 //Definition of public functions.
-Worker* worker_new(uint8_t id, Config *config, uint16_t num_clients, uint64_t num_requests);
-void    worker_free(Worker *worker);
-void*   worker_run(void* arg);
+Worker*   worker_new(uint8_t id, Config *config, uint16_t num_clients, uint64_t num_requests);
+void          worker_free(Worker *worker);
+void*        worker_run(void* arg);
