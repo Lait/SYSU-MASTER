@@ -208,26 +208,19 @@ int main(int argc, char *argv[]) {
 	int namelen;
 	char processor_name[MPI_MAX_PROCESSOR_NAME]; 
 	MPI_Status mpi_status;
-
-	//printf("This is a very simple benchmark tool, please enjoy :) \n\n");
-	//printf("starting benchmark...\n");
  
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD,&myid);
 	MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
 	MPI_Get_processor_name(processor_name, &namelen);
-	//MPI_Barrier(MPI_COMM_WORLD);
 
-	//fprintf(stderr, "Process %d of %d on %s :\n",myid,numprocs,processor_name);
-
-	//Worker **workers;
 	int i;
 	int opt;
 	struct ev_loop *loop;
 	ev_tstamp ts_start, ts_end;
 	Config config;
-	Worker *worker;
-	char *host;
+	Worker *worker = NULL;
+	char *host = NULL;
 	uint16_t port;
 	uint8_t use_ipv6;
 	uint16_t rest_concur, rest_req;
@@ -239,17 +232,17 @@ int main(int argc, char *argv[]) {
 	char **headers;
 	uint8_t headers_num;
 
-
-
 	headers = NULL;
 	headers_num = 0;
+	config.request = NULL;
+	config.saddr = NULL;
 
 	/* default settings */
-	use_ipv6 = 0;
+	use_ipv6            = 0;
 	config.thread_count = 1;
 	config.concur_count = 1;
-	config.req_count = 0;
-	config.keep_alive = 0;
+	config.req_count    = 0;
+	config.keep_alive   = 0;
 
 	while ((opt = getopt(argc, argv, ":hv6kn:t:c:H:")) != -1) {
 		switch (opt) {
@@ -319,112 +312,25 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
-
-	loop = ev_default_loop(0);
-	if (!loop) {
-		W_ERROR("%s", "could not initialize libev\n");
-		return 2;
-	}
-
-	if (NULL == (config.request = forge_request(argv[optind], config.keep_alive, &host, &port, headers, headers_num))) {
-		return 1;
-	}
-
-	config.request_size = strlen(config.request);
-	//printf("Request (%d):\n==========\n%s==========\n", config.request_size, config.request);
-	//printf("host: '%s', port: %d\n", host, port);
-
-	/* resolve hostname */
-	if(!(config.saddr = resolve_host(host, port, use_ipv6))) {
-		return 1;
-	}
-
-	/* spawn threads */
-	//threads = W_MALLOC(pthread_t, config.thread_count);
-	//workers = W_MALLOC(Worker*, config.thread_count);
-
-	rest_concur = config.concur_count % config.thread_count;
-	rest_req = config.req_count % config.thread_count;
-
-	
-
-	memset(&stats, 0, sizeof(stats));
-		
-	uint64_t reqs = config.req_count / config.thread_count;
-	uint16_t concur = config.concur_count / config.thread_count;
-
-	if (rest_concur) {
-		concur += 1;
-		rest_concur -= 1;
-	}
-
-	if (rest_req) {
-		reqs += 1;
-		rest_req -= 1;
-	}
-
-	//Create a new worker.
-	worker = worker_new(1, &config, concur, reqs);
-
-	if (!worker) {
-		W_ERROR("%s", "failed to allocate worker or client");
-		return 1;
-	}
-
-	fprintf(stderr,"Process %d of %d on %s :\n", myid, numprocs, processor_name);
-	fprintf(stderr, "Working on %"PRIu16" concurrent requests, %"PRIu64" total requests.\n", 
-			worker->num_clients, 
-			worker->stats.req_todo);
-
 	//Wait for the other process to start togethor.
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	//Start benchmark worker.
-	ts_start = ev_time();
-	printf("## Process %d started at %lf", myid, ts_start);
-	worker_run(worker);
-
-	//Collect results from workers.
-	stats.req_started += worker->stats.req_started;
-	stats.req_done += worker->stats.req_done;
-	stats.req_success += worker->stats.req_success;
-	stats.req_failed += worker->stats.req_failed;
-	stats.bytes_total += worker->stats.bytes_total;
-	stats.bytes_body += worker->stats.bytes_body;
-	stats.req_2xx += worker->stats.req_2xx;
-	stats.req_3xx += worker->stats.req_3xx;
-	stats.req_4xx += worker->stats.req_4xx;
-	stats.req_5xx += worker->stats.req_5xx;
-
-
-	uint64_t args[9];
-	ts_end = ev_time();
-	//printf("## Process %d ended at %lf", myid, ts_end);
-	duration = ts_end - ts_start;
-	printf("## Process %d cost %lf\n", myid, duration);
-	sec = duration;
-	duration -= sec;
-	duration = duration * 1000;
-	millisec = duration;
-	duration -= millisec;
-	microsec = duration * 1000;
-
 	//If this is process 0
 	if (myid == 0) {
-		//printf("I'm process 0!\n");
-		uint64_t total_req_count = config.req_count;
-		uint64_t total_req_started = stats.req_started;
-		uint64_t total_req_done = stats.req_done;
-		uint64_t total_req_success = stats.req_success;
-		uint64_t total_req_failed = stats.req_failed;
-		uint64_t total_req_error = stats.req_error;
+		uint64_t total_req_count   = 0;
+		uint64_t total_req_started = 0;
+		uint64_t total_req_done    = 0;
+		uint64_t total_req_success = 0;
+		uint64_t total_req_failed  = 0;
+		uint64_t total_req_error   = 0;
+		uint64_t total_bytes       = 0;
 
-		int i;
+		sec = microsec = millisec = 0;
+		uint64_t args[10];
+
 		for(i = 0; i < numprocs; i++) {
 			if (i == 0) continue;
 			MPI_Recv(args, 10, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			//printf("Recv !\n");
-			//Get maxium time spended.
 			if (args[0] > sec) {
 				sec = args[0];
 				millisec = args[1];
@@ -436,24 +342,104 @@ int main(int argc, char *argv[]) {
 				microsec = args[2];
 			}
 
-			total_req_count += args[3];
+			total_req_count   += args[3];
 			total_req_started += args[4];
-			total_req_done += args[5];
+			total_req_done    += args[5];
 			total_req_success += args[6];
-			total_req_failed += args[7];
-			total_req_error += args[8];
+			total_req_failed  += args[7];
+			total_req_error   += args[8];
+			total_bytes       += args[9];
 		}
-		double dur = (double)sec +  (((double)millisec) + (((double)microsec) / 1000)) / 1000;
-		//printf("%lf\n", dur);
-		rps = (uint64_t) (total_req_done / dur);
-		//kbps = stats.bytes_total / (ts_end - ts_start) / 1024;
+		double dur  = (double)sec + (((double)millisec) + (((double)microsec) / 1000)) / 1000;
 
-		printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s\n", sec, millisec, microsec, rps);
+		rps  = (uint64_t)(total_req_done / dur);
+		kbps = (uint64_t)(total_bytes / 1024 / dur);
+
+		printf("\nfinished in %d sec, %d millisec and %d microsec, %"PRIu64" req/s, %"PRIu64" kbyte/s\n", sec, millisec, microsec, rps, kbps);
 		printf("requests: %"PRIu64" total, %"PRIu64" started, %"PRIu64" done, %"PRIu64" succeeded, %"PRIu64" failed, %"PRIu64" errored\n",
 			total_req_count, total_req_started, total_req_done, total_req_success, total_req_failed, total_req_error
 		);
-
 	} else {
+		loop = ev_default_loop(0);
+
+		if (!loop) {
+			W_ERROR("%s", "could not initialize libev\n");
+			return 2;
+		}
+
+		if (NULL == (config.request = forge_request(argv[optind], config.keep_alive, &host, &port, headers, headers_num))) {
+			return 1;
+		}
+
+		config.request_size = strlen(config.request);
+
+		/* resolve hostname */
+		if(!(config.saddr = resolve_host(host, port, use_ipv6))) {
+			return 1;
+		}
+
+		rest_concur = config.concur_count % config.thread_count;
+		rest_req = config.req_count % config.thread_count;
+
+		memset(&stats, 0, sizeof(stats));
+			
+		uint64_t reqs = config.req_count / config.thread_count;
+		uint16_t concur = config.concur_count / config.thread_count;
+
+		if (rest_concur) {
+			concur += 1;
+			rest_concur -= 1;
+		}
+
+		if (rest_req) {
+			reqs += 1;
+			rest_req -= 1;
+		}
+
+		//Create a new worker.
+		worker = worker_new(1, &config, concur, reqs);
+
+		if (!worker) {
+			W_ERROR("%s", "failed to allocate worker or client");
+			return 1;
+		}
+
+		fprintf(stderr,"Process %d of %d on %s :\n", myid, numprocs - 1, processor_name);
+		fprintf(stderr, "Working on %"PRIu16" concurrent requests, %"PRIu64" total requests.\n", 
+				worker->num_clients, 
+				worker->stats.req_todo);
+
+		//Start benchmark worker.
+		ts_start = ev_time();
+		printf("## Process %d started at %lf", myid, ts_start);
+		worker_run(worker);
+		ts_end = ev_time();
+
+		//Collect results from workers.
+		stats.req_started += worker->stats.req_started;
+		stats.req_done    += worker->stats.req_done;
+		stats.req_success += worker->stats.req_success;
+		stats.req_failed  += worker->stats.req_failed;
+		stats.bytes_total += worker->stats.bytes_total;
+		stats.bytes_body  += worker->stats.bytes_body;
+
+		stats.req_2xx += worker->stats.req_2xx;
+		stats.req_3xx += worker->stats.req_3xx;
+		stats.req_4xx += worker->stats.req_4xx;
+		stats.req_5xx += worker->stats.req_5xx;
+
+
+		uint64_t args[10];
+		
+		//printf("## Process %d ended at %lf", myid, ts_end);
+		duration = ts_end - ts_start;
+		printf("## Process %d cost %lf\n", myid, duration);
+		sec = duration;
+		duration -= sec;
+		duration = duration * 1000;
+		millisec = duration;
+		duration -= millisec;
+		microsec = duration * 1000;
 		args[0] = sec;
 		args[1] = millisec;
 		args[2] = microsec;
@@ -463,18 +449,19 @@ int main(int argc, char *argv[]) {
 		args[6] = stats.req_success;
 		args[7] = stats.req_failed;
 		args[8] = stats.req_error;
+		args[9] = stats.bytes_total;
 
 		MPI_Send(args, 10, MPI_UNSIGNED_LONG, 0, 0, MPI_COMM_WORLD);
-		//printf("Send!\n");
+		ev_default_destroy();
 	}
 
-	ev_default_destroy();
+	
 
-	free(worker);
-	free(config.request);
-	free(host);
-	free(headers);
-	freeaddrinfo(config.saddr);
+	if (worker)         free(worker);
+	if (config.request) free(config.request);
+	if (host)           free(host);
+	if (headers)        free(headers);
+	if (config.saddr)   freeaddrinfo(config.saddr);
 	
 	MPI_Finalize();
 

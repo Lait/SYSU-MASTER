@@ -1,2 +1,2 @@
 rm bench
-mpicc  -o bench src/*.c   -fopenmp -lev
+mpicc  -o bench src/*.c -lev
