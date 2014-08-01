@@ -1,6 +1,6 @@
 struct Worker {
 	uint8_t id;
-	Config *config;
+	Config*config;
 	struct ev_loop *loop;
 	char *request;
 	Client **clients;

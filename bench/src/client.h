@@ -14,7 +14,7 @@ struct Client {
 		PARSER_BODY
 	} parser_state;
 
-	Worker *worker;
+	Worker* worker;
 	ev_io sock_watcher;
 	uint32_t buffer_offset;
 	uint32_t parser_offset;
@@ -32,10 +32,21 @@ struct Client {
 	uint16_t header_size;
 
 	char buffer[CLIENT_BUFFER_SIZE];
+
+	int error_code;
 };
 
+//Definitions
 
-//Definition of public functions.
+//Public 
 Client*   client_new(Worker *worker);
 void       client_free(Client *client);
 void       client_state_machine(Client *client);
+
+//Private
+uint8_t   client_parse(Client *client, int size);
+void       client_set_events(Client *client, int events);
+void       client_reset(Client *client);
+uint8_t   client_connect(Client *client);
+void       client_io_cb(struct ev_loop *loop, ev_io *w, int revents);
+
