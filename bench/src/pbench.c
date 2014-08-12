@@ -198,7 +198,7 @@ int init_config(Config* config, int argc, char *argv[]) {
 */
 int collect_results(int numprocs) {
 
-	int64_t total_req_count    = 0;
+	int64_t  total_req_count    = 0;
 	uint64_t total_req_started = 0;
 	uint64_t total_req_done    = 0;
 	uint64_t total_req_success = 0;
@@ -213,7 +213,7 @@ int collect_results(int numprocs) {
 	int i;
 
 	for(i = 0; i < numprocs; i++) {
-		if (i == 0) continue;
+		//if (i == 0) continue;
 		// BUG 0002: This may block process 0.
 		MPI_Recv(args, 10, MPI_UNSIGNED_LONG, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 		// Find out the max time spended.
@@ -353,21 +353,20 @@ int main(int argc, char *argv[]) {
 
 	Config config;
 	if (init_config(&config, argc, argv)) {
-		printf("%s\n");
+		printf("Can't init pbench! \n");
 		MPI_Finalize();
 		return 1;
 	}
 
 	//Wait for the other process to start togethor.
 	MPI_Barrier(MPI_COMM_WORLD);
+	bench(&config, myid, numprocs, processor_name);
 
 	//If this is process 0
 	if (myid == 0) {
 		collect_results(numprocs);
-	} else {
-		bench(&config, myid, numprocs, processor_name);
-	}
-	
+	} 
+
 	if (config.request) free(config.request);
 	if (config.saddr)   freeaddrinfo(config.saddr);
 	

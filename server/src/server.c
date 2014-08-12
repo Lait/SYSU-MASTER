@@ -185,7 +185,7 @@ int main(int argc, char *argv[]) {
 			//Debug
 			//printAll();
 			analyse1();
-			analyse2();
+			//analyse2();
 			size = 0;
 			//memset(&results, 0, sizeof(results));
 		} else {
